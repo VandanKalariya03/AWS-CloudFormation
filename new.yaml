@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+
+  MyEc2InstanceType:
+    Description: My Ec2 Instance Type Selection
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+         - t3.micro
+         - t3.small
+         - t3.medium
+
+  MyInstanceKey:
+    Description: Select the key
+    Type: AWS::EC2::KeyPair::KeyName
+
+Resources:
+  MyEc2Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref MyEc2InstanceType
+      ImageId:  ami-07dfed28fcf95241c 
+      KeyName: !Ref MyInstanceKey
+      SubnetId: !Ref MySubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup1
+      Tags:
+        - Key: Name
+          Value: My Instance 1
+      UserData: !Base64 
+        'Fn::Sub': |
+          #!/bin/bash
+          sudo su
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          cd /var/www/html
+          curl -sL https://rpm.nodesource.com/setup_14.x | sudo bash -
+          yum install -y nodejs
+          npx create-react-app myapp
+          cd myapp
+          PORT=3001 npm start
+    
+  MySubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref MyVPC
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Task Subnet
+
+  MyVPC:
+    Type: AWS::EC2::VPC 
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: Task VPC
+          
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Task IG
+
+  MyInternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: Task RT
+
+  MyRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  MySubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnet
+      RouteTableId: !Ref MyRouteTable
+
+  MySecurityGroup1:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SG1
+      GroupDescription: Allow incoming traffic on ports 22 (SSH) and 80 (HTTP)
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3001
+          ToPort: 3001
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3001
+          ToPort: 3001
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+  
